@@ -1,0 +1,156 @@
+// --- Get References to HTML Elements (DOM Elements) ---
+// We grab references to all the important parts of our web page that our JavaScript needs to interact with.
+const display = document.getElementById('display'); // The area where the time is shown
+const startBtn = document.getElementById('startBtn'); // The "Start" button
+const pauseBtn = document.getElementById('pauseBtn'); // The "Pause" button
+const resetBtn = document.getElementById('resetBtn'); // The "Reset" button
+const lapBtn = document.getElementById('lapBtn'); // The "Lap" button
+const lapList = document.getElementById('lapList'); // The unordered list where lap times are added
+
+// --- Stopwatch Variables ---
+let startTime; // Stores the exact time when the stopwatch was started or unpaused (in milliseconds since epoch)
+let elapsedTime = 0; // Keeps track of the total time that has passed (in milliseconds)
+let timerInterval; // Will hold the ID returned by `setInterval`, allowing us to clear it later
+let isRunning = false; // A flag to know if the stopwatch is currently running or not
+let lapCounter = 0; // Counts how many laps have been recorded
+
+// --- Core Stopwatch Functions ---
+
+/**
+ * Formats a given time in milliseconds into a user-friendly HH:MM:SS string.
+ * We're omitting milliseconds from the display for a cleaner look, as per the UI design.
+ * @param {number} ms - The time duration in milliseconds.
+ * @returns {string} The formatted time string (e.g., "01:23:45").
+ */
+function formatTime(ms) {
+    // Calculate hours: 1 hour = 3,600,000 milliseconds
+    const hours = Math.floor(ms / 3600000);
+    ms %= 3600000; // Get the remainder milliseconds after accounting for hours
+
+    // Calculate minutes: 1 minute = 60,000 milliseconds
+    const minutes = Math.floor(ms / 60000);
+    ms %= 60000; // Get the remainder milliseconds after accounting for minutes
+
+    // Calculate seconds: 1 second = 1,000 milliseconds
+    const seconds = Math.floor(ms / 1000);
+
+    // Helper function to add a leading zero if a number is less than 10
+    const pad = (num) => String(num).padStart(2, '0');
+
+    // Return the time in HH:MM:SS format
+    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+}
+
+/**
+ * Updates the stopwatch display on the screen.
+ * This function is called repeatedly by `setInterval` when the stopwatch is running.
+ */
+function updateDisplay() {
+    // Calculate the current elapsed time by subtracting the start time from the current time.
+    elapsedTime = Date.now() - startTime;
+    // Update the text content of the display element with the newly formatted elapsed time.
+    display.textContent = formatTime(elapsedTime);
+}
+
+/**
+ * Starts the stopwatch.
+ * This function initiates the time tracking and enables/disables appropriate buttons.
+ */
+function startStopwatch() {
+    // Only start if the stopwatch is not already running
+    if (!isRunning) {
+        // If the stopwatch was paused (elapsedTime > 0), we adjust startTime
+        // so that counting resumes from where it left off.
+        // If it's a fresh start (elapsedTime = 0), startTime will just be Date.now().
+        startTime = Date.now() - elapsedTime;
+
+        // Set up an interval to call `updateDisplay` every 1000 milliseconds (1 second).
+        // This makes the stopwatch tick.
+        timerInterval = setInterval(updateDisplay, 1000); // Changed to 1000ms for HH:MM:SS display
+
+        isRunning = true; // Set the running flag to true
+
+        // Disable the Start button and enable Pause, Reset, and Lap buttons
+        startBtn.disabled = true;
+        pauseBtn.disabled = false;
+        resetBtn.disabled = false;
+        lapBtn.disabled = false;
+    }
+}
+
+/**
+ * Pauses the stopwatch.
+ * This function stops the time tracking and updates button states.
+ */
+function pauseStopwatch() {
+    // Only pause if the stopwatch is currently running
+    if (isRunning) {
+        clearInterval(timerInterval); // Stop the `setInterval` from updating the display
+        isRunning = false; // Set the running flag to false
+
+        // Enable the Start button and disable Pause and Lap buttons
+        startBtn.disabled = false;
+        pauseBtn.disabled = true;
+        lapBtn.disabled = true; // Cannot record a lap when the stopwatch is paused
+    }
+}
+
+/**
+ * Resets the stopwatch to its initial zero state.
+ * This clears the display, resets lap times, and updates button states.
+ */
+function resetStopwatch() {
+    clearInterval(timerInterval); // Stop any active timer
+    isRunning = false; // Ensure the running flag is false
+    elapsedTime = 0; // Reset elapsed time to zero
+    lapCounter = 0; // Reset lap counter to zero
+    
+    display.textContent = formatTime(elapsedTime); // Update display to show "00:00:00"
+    lapList.innerHTML = ''; // Clear all recorded lap times from the list
+
+    // Reset button states: Enable Start, disable Pause, Reset, and Lap
+    startBtn.disabled = false;
+    pauseBtn.disabled = true;
+    resetBtn.disabled = true;
+    lapBtn.disabled = true;
+}
+
+/**
+ * Records the current elapsed time as a lap time.
+ * A new list item is created and added to the top of the lap times list.
+ */
+function recordLap() {
+    // Only record a lap if the stopwatch is currently running
+    if (isRunning) {
+        lapCounter++; // Increment the lap counter
+        // Get the current elapsed time formatted as HH:MM:SS for the lap record
+        const lapTime = formatTime(elapsedTime);
+
+        // Create a new list item element
+        const listItem = document.createElement('li');
+        // Set its content: "Lap X:" and the formatted lap time
+        listItem.innerHTML = `<span>Lap ${lapCounter}:</span> <span>${lapTime}</span>`;
+        
+        // Add the new lap time to the top (beginning) of the lap list
+        lapList.prepend(listItem);
+    }
+}
+
+// --- Event Listeners ---
+// Attach the `startStopwatch` function to the "Start" button's click event.
+startBtn.addEventListener('click', startStopwatch);
+// Attach the `pauseStopwatch` function to the "Pause" button's click event.
+pauseBtn.addEventListener('click', pauseStopwatch);
+// Attach the `resetStopwatch` function to the "Reset" button's click event.
+resetBtn.addEventListener('click', resetStopwatch);
+// Attach the `recordLap` function to the "Lap" button's click event.
+lapBtn.addEventListener('click', recordLap);
+
+// --- Initial Setup ---
+// Set the initial states for the buttons when the page loads.
+// The Start button is enabled by default (as per HTML, but good to be explicit here).
+// The other buttons (Pause, Reset, Lap) should be disabled until the stopwatch is started.
+startBtn.disabled = false; // Already enabled in HTML, but explicitly setting it.
+pauseBtn.disabled = true;
+resetBtn.disabled = true;
+lapBtn.disabled = true;
