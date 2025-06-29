@@ -1,0 +1,362 @@
+// Get DOM elements
+const gameBoard = document.getElementById('gameBoard');
+const cells = document.querySelectorAll('.cell');
+const statusDisplay = document.getElementById('status');
+const resetBtn = document.getElementById('resetBtn');
+const winningLine = document.getElementById('winningLine');
+const themeToggleBtn = document.getElementById('themeToggleBtn');
+const moonIcon = document.getElementById('moonIcon');
+const sunIcon = document.getElementById('sunIcon');
+const modeSelection = document.getElementById('modeSelection');
+const pvpModeBtn = document.getElementById('pvpModeBtn');
+const pvaiModeBtn = document.getElementById('pvaiModeBtn');
+const backBtn = document.getElementById('backBtn');
+
+// Game state variables
+let board = ['', '', '', '', '', '', '', '', '']; // Represents the Tic-Tac-Toe board
+let currentPlayer = 'X'; // 'X' always starts
+let gameActive = false; // True when a game is in progress
+let gameMode = null; // 'PvP' (Player vs Player) or 'PvAI' (Player vs AI)
+
+// Constants for drawing the winning line, dynamically updated based on CSS
+let CELL_SIZE = 100; // Default cell size (will be updated)
+let CELL_GAP_CSS = 8; // Default gap between cells (from CSS)
+const LINE_THICKNESS = 8; // Thickness of the winning line
+
+// All possible winning combinations (rows, columns, diagonals)
+const winningCombinations = [
+    [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
+    [0, 3, 6], [1, 4, 7], [2, 5, 8], // Columns
+    [0, 4, 8], [2, 4, 6]             // Diagonals
+];
+
+/**
+ * Updates layout constants (like CELL_SIZE) by reading computed styles.
+ * Essential for accurate winning line drawing on responsive layouts.
+ */
+function updateLayoutConstants() {
+    if (cells.length > 0) {
+        const computedStyle = getComputedStyle(cells[0]);
+        CELL_SIZE = parseFloat(computedStyle.width); // Get actual cell width
+        // Note: CELL_GAP_CSS is static here, but could be dynamic if needed.
+    }
+}
+
+/**
+ * Handles a click on a game cell.
+ * Places the current player's mark, checks for game end, and switches turns.
+ * @param {HTMLElement} clickedCell - The div element that was clicked.
+ * @param {number} clickedCellIndex - The index of the clicked cell (0-8).
+ */
+function handleCellClick(clickedCell, clickedCellIndex) {
+    // Do nothing if cell is already occupied or game is not active
+    if (board[clickedCellIndex] !== '' || !gameActive) {
+        return;
+    }
+
+    // Update board state and UI
+    board[clickedCellIndex] = currentPlayer;
+    clickedCell.textContent = currentPlayer;
+    clickedCell.classList.add(currentPlayer.toLowerCase()); // Add 'x' or 'o' class for styling
+
+    // Check if the game has ended (win or draw)
+    checkGameResult();
+
+    // If game is still active, switch player and handle AI move if in PvAI mode
+    if (gameActive) {
+        changePlayerTurn();
+        if (gameMode === 'PvAI' && currentPlayer === 'O') {
+            // AI makes a move after a short delay
+            setTimeout(makeAIMove, 500);
+        }
+    }
+}
+
+/**
+ * Switches the current player and updates the status display.
+ */
+function changePlayerTurn() {
+    currentPlayer = currentPlayer === 'X' ? 'O' : 'X'; // Toggle between 'X' and 'O'
+    statusDisplay.textContent = `Player ${currentPlayer}'s Turn`;
+}
+
+/**
+ * Checks if there's a winner or if the game is a draw.
+ * Updates status display, draws winning line, triggers confetti, and disables game if ended.
+ */
+function checkGameResult() {
+    let winnerFound = false;
+    let winningCombo = null;
+
+    // Iterate through all winning combinations
+    for (let i = 0; i < winningCombinations.length; i++) {
+        const currentCombo = winningCombinations[i];
+        const cell1 = board[currentCombo[0]];
+        const cell2 = board[currentCombo[1]];
+        const cell3 = board[currentCombo[2]];
+
+        // If any cell in the combination is empty, continue to next combo
+        if (cell1 === '' || cell2 === '' || cell3 === '') {
+            continue;
+        }
+
+        // Check for a win
+        if (cell1 === cell2 && cell2 === cell3) {
+            winnerFound = true;
+            winningCombo = currentCombo; // Store the winning combination
+            break; // Exit loop, winner found
+        }
+    }
+
+    if (winnerFound) {
+        statusDisplay.textContent = `Player ${currentPlayer} Wins! 🎉`;
+        gameActive = false; // Stop the game
+        drawWinningLine(winningCombo); // Draw the line through winning cells
+        triggerConfettiAnimation(); // Celebrate with confetti
+        resetBtn.disabled = false; // Enable reset button
+        resetBtn.classList.remove('disabled-btn'); // Remove disabled styling
+        return;
+    }
+
+    // Check for a draw (if no winner and no empty cells)
+    const isDraw = !board.includes('');
+    if (isDraw) {
+        statusDisplay.textContent = `It's a Draw! 🤝`;
+        gameActive = false; // Stop the game
+        resetBtn.disabled = false; // Enable reset button
+        resetBtn.classList.remove('disabled-btn'); // Remove disabled styling
+        return;
+    }
+}
+
+/**
+ * Draws the winning line across the victorious combination.
+ * Calculates position and rotation based on the winning combination.
+ * @param {number[]} condition - The array of indices representing the winning combination.
+ */
+function drawWinningLine(condition) {
+    updateLayoutConstants(); // Ensure constants are up-to-date for accurate drawing
+
+    const boardWidth = gameBoard.offsetWidth;
+    const boardHeight = gameBoard.offsetHeight;
+
+    let lineWidth = LINE_THICKNESS, lineHeight = LINE_THICKNESS;
+    let lineTransform = 'translate(-50%, -50%)'; // Center the line initially
+
+    winningLine.style.left = '50%';
+    winningLine.style.top = '50%';
+    winningLine.style.transformOrigin = 'center center'; // Ensure rotation is from the center
+
+    // Calculate center of a cell from the board's edge (including cell gap)
+    const cellCenterFromEdge = (CELL_SIZE / 2) + CELL_GAP_CSS;
+    const boardHalfDimension = boardWidth / 2; // Half width/height of the board
+
+    // Determine line dimensions and transformation based on the winning combination
+    if (
+        (condition[0] === 0 && condition[1] === 1 && condition[2] === 2) || // Top row
+        (condition[0] === 3 && condition[1] === 4 && condition[2] === 5) || // Middle row
+        (condition[0] === 6 && condition[1] === 7 && condition[2] === 8)    // Bottom row
+    ) {
+        lineWidth = boardWidth; // Line spans the full board width
+        let verticalOffset = 0;
+        if (condition[0] === 0) verticalOffset = -(boardHalfDimension - cellCenterFromEdge); // Top row offset
+        if (condition[0] === 6) verticalOffset = (boardHalfDimension - cellCenterFromEdge);  // Bottom row offset
+        lineTransform += ` translateY(${verticalOffset}px)`; // Apply vertical offset
+    } else if (
+        (condition[0] === 0 && condition[1] === 3 && condition[2] === 6) || // Left column
+        (condition[0] === 1 && condition[1] === 4 && condition[2] === 7) || // Middle column
+        (condition[0] === 2 && condition[1] === 5 && condition[2] === 8)    // Right column
+    ) {
+        lineHeight = boardHeight; // Line spans the full board height
+        let horizontalOffset = 0;
+        if (condition[0] === 0) horizontalOffset = -(boardHalfDimension - cellCenterFromEdge); // Left column offset
+        if (condition[0] === 2) horizontalOffset = (boardHalfDimension - cellCenterFromEdge); // Right column offset
+        lineTransform += ` translateX(${horizontalOffset}px)`; // Apply horizontal offset
+    } else if (condition[0] === 0 && condition[1] === 4 && condition[2] === 8) { // Diagonal (top-left to bottom-right)
+        lineWidth = Math.sqrt(boardWidth * boardWidth + boardHeight * boardHeight); // Length of diagonal
+        lineTransform += ` rotate(45deg)`; // Rotate 45 degrees
+    } else if (condition[0] === 2 && condition[1] === 4 && condition[2] === 6) { // Diagonal (top-right to bottom-left)
+        lineWidth = Math.sqrt(boardWidth * boardWidth + boardHeight * boardHeight); // Length of diagonal
+        lineTransform += ` rotate(-45deg)`; // Rotate -45 degrees
+    }
+
+    // Apply calculated dimensions and transformations
+    winningLine.style.width = `${lineWidth}px`;
+    winningLine.style.height = `${lineHeight}px`;
+    winningLine.style.transform = lineTransform;
+    winningLine.classList.add('active'); // Make the line visible
+}
+
+/**
+ * Hides the winning line and resets its transformation.
+ */
+function hideWinningLine() {
+    winningLine.classList.remove('active');
+    winningLine.style.transform = `translate(-50%, -50%)`; // Reset transform to center
+}
+
+/**
+ * Triggers a confetti animation for celebration.
+ */
+function triggerConfettiAnimation() {
+    confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+    });
+
+    setTimeout(() => {
+        confetti({
+            particleCount: 80,
+            spread: 80,
+            origin: { y: 0.5, x: 0.5 },
+            colors: ['#66fcf1', '#00e676', '#ff1744', '#ffd700'] // Confetti colors for dark mode vibrancy
+        });
+    }, 200);
+}
+
+/**
+ * Makes a move for the AI player (simple random move).
+ * This function is called when it's the AI's turn in PvAI mode.
+ */
+function makeAIMove() {
+    if (!gameActive) return; // Only move if game is active
+
+    const availableCells = [];
+    // Find all empty cells
+    board.forEach((cell, index) => {
+        if (cell === '') {
+            availableCells.push(index);
+        }
+    });
+
+    if (availableCells.length > 0) {
+        // Pick a random available cell
+        const randomIndex = Math.floor(Math.random() * availableCells.length);
+        const cellToClickIndex = availableCells[randomIndex];
+
+        // Simulate a click on that cell
+        const cellElement = cells[cellToClickIndex];
+        handleCellClick(cellElement, cellToClickIndex);
+    }
+}
+
+/**
+ * Sets the game mode (PvP or PvAI) and starts a new game.
+ * @param {string} mode - The selected game mode ('PvP' or 'PvAI').
+ */
+function setGameMode(mode) {
+    gameMode = mode;
+    modeSelection.classList.add('hidden'); // Hide mode selection buttons
+    gameBoard.classList.add('active'); // Enable board interactivity
+    resetGame(); // Start a new game with the selected mode
+    resetBtn.disabled = false; // Enable reset button
+    resetBtn.classList.remove('disabled-btn'); // Remove disabled styling
+
+    // If PvAI and AI is 'O' and it's 'O's turn initially, make AI move
+    if (gameMode === 'PvAI' && currentPlayer === 'O') {
+        setTimeout(makeAIMove, 500);
+    }
+
+    // Ensure game is active for PvP mode immediately
+    if (gameMode === 'PvP') {
+        gameActive = true;
+    }
+}
+
+/**
+ * Resets the game to its initial state, clearing the board and resetting players/status.
+ * If no game mode is set, it returns to the mode selection screen.
+ */
+function resetGame() {
+    board = ['', '', '', '', '', '', '', '', '']; // Clear the board
+    currentPlayer = 'X'; // Reset to player X
+    gameActive = true; // Set game to active
+    statusDisplay.textContent = `Player ${currentPlayer}'s Turn`; // Update status
+    hideWinningLine(); // Hide any winning line
+
+    // Clear text content and classess from all cells
+    cells.forEach(cell => {
+        cell.textContent = '';
+        cell.classList.remove('x', 'o');
+    });
+
+    // If no game mode is currently selected (e.g., after clicking "Back" button)
+    if (!gameMode) {
+        modeSelection.classList.remove('hidden'); // Show mode selection
+        gameBoard.classList.remove('active'); // Disable board interactivity
+        statusDisplay.textContent = `Select Game Mode`; // Update status
+        resetBtn.disabled = true; // Disable reset button
+        resetBtn.classList.add('disabled-btn'); // Add disabled styling
+    }
+}
+
+/**
+ * Toggles between light and dark themes.
+ * Updates body class, icon visibility, and saves preference to local storage.
+ */
+function toggleTheme() {
+    const isDarkMode = document.body.classList.contains('dark-mode');
+
+    if (isDarkMode) {
+        document.body.classList.remove('dark-mode');
+        moonIcon.classList.remove('hidden'); // Show moon icon for light mode
+        sunIcon.classList.add('hidden'); // Hide sun icon
+        localStorage.setItem('theme', 'light'); // Save preference
+    } else {
+        document.body.classList.add('dark-mode');
+        moonIcon.classList.add('hidden'); // Hide moon icon
+        sunIcon.classList.remove('hidden'); // Show sun icon for dark mode
+        localStorage.setItem('theme', 'dark'); // Save preference
+    }
+}
+
+/**
+ * Loads the user's saved theme preference from local storage on page load.
+ */
+function loadThemePreference() {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+        document.body.classList.add('dark-mode');
+        moonIcon.classList.add('hidden');
+        sunIcon.classList.remove('hidden');
+    } else {
+        // Default to light mode if no preference or explicitly 'light'
+        document.body.classList.remove('dark-mode');
+        moonIcon.classList.remove('hidden');
+        sunIcon.classList.add('hidden');
+    }
+}
+
+// Event Listeners
+
+// Add click listener to each cell
+cells.forEach((cell, index) => {
+    cell.addEventListener('click', () => handleCellClick(cell, index));
+});
+
+// Reset button click listener
+resetBtn.addEventListener('click', resetGame);
+
+// Theme toggle button click listener
+themeToggleBtn.addEventListener('click', toggleTheme);
+
+// Game mode selection button listeners
+pvpModeBtn.addEventListener('click', () => setGameMode('PvP'));
+pvaiModeBtn.addEventListener('click', () => setGameMode('PvAI'));
+
+// Back button listener (returns to mode selection)
+backBtn.addEventListener('click', () => {
+    gameMode = null; // Clear game mode
+    resetGame(); // Reset game state and return to mode selection view
+});
+
+// Initialize on window load
+window.addEventListener('load', () => {
+    updateLayoutConstants(); // Update cell size based on loaded CSS
+    loadThemePreference(); // Apply saved theme
+    resetGame(); // Initialize game state, which shows mode selection initially
+});
+
+// Update layout constants on window resize to ensure winning line is accurate
+window.addEventListener('resize', updateLayoutConstants);
